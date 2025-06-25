@@ -2,7 +2,7 @@
   "name": "my-chi-botanical-app",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://dubemo6.github.io/-Chi-Botanica",
+  "homepage": "https://dubemo6.github.io/Chi-Botanical/",
   "type": "module",
   "scripts": {
     "dev": "vite",
