@@ -5,27 +5,30 @@ import image3 from './assets/luxury-nail-manicure.jpg';
 import image4 from './assets/Mesotherapy-min-450x433.png';
 import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
+
 // Removed ReactDOM import from here as it's now handled in main.jsx
 // Firebase imports have been removed as per your request for client-side booking.
 
 // Particle Intro Animation Component (remains at the top as it's used by App)
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
+    
     const canvasRef = useRef(null);
     const particlesRef = useRef([]); // Ref to store particles
     const animationFrameIdRef = useRef(null); // Ref to store requestAnimationFrame ID
     const initialScatteringSetupDoneRef = useRef(false); // Track if initial scatter setup has run
 
     // Constants for the animation
-    const PARTICLE_COUNT = 4000;
-    const TEXT_SIZE = 85;
-    const TEXT_FONT = 'Inter, sans-serif';
-    const RADIANCE_WORD = 'CHI BOTANICAL';
-    const PARTICLE_COLOR = '#90EE90'; // Original lighter green
-    const FLOWER_COLORS = [
-        '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
-    ];
-    // Slightly increased PARTICLE_RADIUS as requested
-    const PARTICLE_RADIUS = 2.5; // Increased from 2 to 2.5 for more visible particles
+   const PARTICLE_COUNT = 4000;
+const TEXT_FONT = 'Inter, sans-serif';
+const RADIANCE_WORD = 'CHI BOTANICAL';
+const PARTICLE_COLOR = '#90EE90'; // Original lighter green
+const FLOWER_COLORS = [
+    '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
+];
+const PARTICLE_RADIUS = 2.5;
+
+// Determine TEXT_SIZE based on screen width
+const TEXT_SIZE = window.innerWidth <= 768 ? 38 : 85; // Assuming 768px as a common breakpoint for mobile devices. You can adjust this. // Increased from 2 to 2.5 for more visible particles
 
     // Particle class definition
     class Particle {
@@ -197,7 +200,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                 };
             });
 
-            ctx.strokeStyle = 'rgba(152, 251, 152, 0.3)';
+            ctx.strokeStyle = 'rgba(0, 251, 0, 1)';
             ctx.lineWidth = 2;
 
             edges.forEach(edge => {
@@ -679,13 +682,7 @@ const App = () => {
                     transform: scale(1.05); /* hover:scale-105 */
                 }
 
-                .down-arrow {
-                    position: absolute;
-                    bottom: 2rem; /* bottom-8 */
-                    color: #fff;
-                    font-size: 2.5rem; /* text-4xl */
-                    animation: bounce 1s infinite;
-                }
+              
 
                 @media (min-width: 768px) { /* md */
                     .down-arrow {
@@ -1080,7 +1077,6 @@ const App = () => {
                 .calendar-navigation-button:hover {
                     background-color: #059669; /* hover:bg-green-600 */
                 }
-
                 .calendar-navigation-title {
                     font-size: 1.25rem; /* text-xl */
                     font-weight: 600; /* font-semibold */
@@ -1549,10 +1545,8 @@ const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.for
         setMessage(''); // Clear any previous messages
         setMessageType(''); // Clear message type
     }, [service]);
-
     // Local state to simulate booked slots for the current session (no persistence without Firebase)
     const [bookedSlots, setBookedSlots] = useState([]); // Stores { date: 'YYYY-MM-DD', time: 'HH:MM AM/PM' }
-
     // State for the calendar and form
     const [bookingStep, setBookingStep] = useState('selectDateTime'); // 'selectDateTime', 'confirmDetails', 'bookingSuccess', 'bookingFailure'
     const [selectedDate, setSelectedDate] = useState(null); // Format: 'YYYY-MM-DD'
@@ -1578,10 +1572,10 @@ const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.for
 
     const generateTimeSlots = () => {
         const slots = [];
-        for (let i = 9; i < 17; i++) { // 9 AM to 4 PM
+        for (let i = 9; i < 20; i++) { // 9 AM to 4 PM
             slots.push(`${i}:00 AM`);
             // Add half-hour slots for more flexibility
-            if (i < 16) { // Don't add 4:30 PM
+            if (i < 20) { // Don't add 4:30 PM
                 slots.push(`${i}:30 AM`);
             }
         }
