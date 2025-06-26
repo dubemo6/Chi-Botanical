@@ -2,6 +2,50 @@ import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from
 // Removed ReactDOM import from here as it's now handled in main.jsx
 // Firebase imports have been removed as per your request for client-side booking.
 
+// Helper function to get text pixel data from a canvas
+const getTextPixels = (text, fontSize, font, canvasWidth, canvasHeight) => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = canvasWidth;
+    tempCanvas.height = canvasHeight;
+    tempCtx.font = `${fontSize}px ${font}`;
+    tempCtx.textAlign = 'center';
+    tempCtx.textBaseline = 'middle';
+    tempCtx.fillStyle = '#000'; // Any color, we only care about alpha channel
+    tempCtx.fillText(text, tempCanvas.width / 2, tempCanvas.height / 2);
+
+    if (tempCanvas.width === 0 || tempCanvas.height === 0) {
+        console.error("Temporary canvas dimensions are zero. Cannot get image data for text pixels.");
+        return [];
+    }
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const pixels = imageData.data;
+    const textPixels = [];
+    // Iterate over pixels, stepping by 2 for optimization
+    for (let y = 0; y < tempCanvas.height; y += 2) {
+        for (let x = 0; x < tempCanvas.width; x += 2) {
+            const index = (y * tempCanvas.width + x) * 4;
+            const alpha = pixels[index + 3];
+            if (alpha > 0) { // If pixel is part of the text (has opacity)
+                textPixels.push({ x: x, y: y });
+            }
+        }
+    }
+    return textPixels;
+};
+
+// Helper function to get responsive text size based on window width
+const getResponsiveTextSize = (width) => {
+    if (width < 480) { // Extra small devices (e.g., small phones)
+        return 30; // Further reduced for very small screens
+    } else if (width < 768) { // Small devices (e.g., larger phones, small tablets)
+        return 45;
+    } else { // Medium to large devices (e.g., tablets, desktops)
+        return 60;
+    }
+};
+
 // Particle Intro Animation Component (remains at the top as it's used by App)
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
     const canvasRef = useRef(null);
@@ -11,9 +55,8 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
 
     // Constants for the animation
     const PARTICLE_COUNT = 4000;
-    const TEXT_SIZE = 60;
-    const TEXT_FONT = 'Inter, sans-serif';
     const RADIANCE_WORD = 'CHI BOTANICAL';
+    const TEXT_FONT = 'Inter, sans-serif';
     const PARTICLE_COLOR = '#90EE90'; // Original lighter green
     const FLOWER_COLORS = [
         '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
@@ -78,6 +121,45 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
         }
     }
 
+    // Function to initialize or re-initialize particles based on current canvas size
+    const initializeParticles = useCallback((width, height) => {
+        const currentTextSize = getResponsiveTextSize(width);
+        const textPixels = getTextPixels(RADIANCE_WORD, currentTextSize, TEXT_FONT, width, height);
+
+        // If particles already exist, update their targets. Otherwise, create new ones.
+        if (particlesRef.current.length > 0) {
+            particlesRef.current.forEach((p, i) => {
+                const targetPixel = textPixels[i % textPixels.length];
+                if (targetPixel) {
+                    p.targetX = targetPixel.x;
+                    p.targetY = targetPixel.y;
+                } else {
+                    // Fallback if there are fewer text pixels than particles
+                    p.targetX = Math.random() * width;
+                    p.targetY = Math.random() * height;
+                }
+            });
+        } else {
+            particlesRef.current = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const radius = PARTICLE_RADIUS + Math.random() * 0.5;
+                const targetPixel = textPixels[i % textPixels.length];
+                const particle = new Particle(x, y, radius, PARTICLE_COLOR);
+                if (targetPixel) {
+                    particle.targetX = targetPixel.x;
+                    particle.targetY = targetPixel.y;
+                } else {
+                    particle.targetX = Math.random() * width;
+                    particle.targetY = Math.random() * height;
+                }
+                particlesRef.current.push(particle);
+            }
+        }
+    }, [RADIANCE_WORD, TEXT_FONT, PARTICLE_COUNT, PARTICLE_COLOR, PARTICLE_RADIUS]); // Dependencies for useCallback
+
+
     useLayoutEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -85,68 +167,19 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
         canvas.height = window.innerHeight;
 
         if (canvas.width === 0 || canvas.height === 0) {
-            console.warn("Canvas dimensions are zero. Skipping initial particle setup.");
+            console.warn("Canvas dimensions are zero on initial render. Skipping setup.");
             return;
         }
 
-        const getTextPixels = (text, fontSize, font, ctx) => {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = ctx.canvas.width;
-            tempCanvas.height = ctx.canvas.height;
-            tempCtx.font = `${fontSize}px ${font}`;
-            tempCtx.textAlign = 'center';
-            tempCtx.textBaseline = 'middle';
-            tempCtx.fillStyle = '#000';
-            tempCtx.fillText(text, tempCanvas.width / 2, tempCanvas.height / 2);
-            
-            if (tempCanvas.width === 0 || tempCanvas.height === 0) {
-                console.error("Temporary canvas dimensions are zero. Cannot get image data.");
-                return [];
-            }
-
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            const pixels = imageData.data;
-            const textPixels = [];
-            for (let y = 0; y < tempCanvas.height; y += 2) {
-                for (let x = 0; x < tempCanvas.width; x += 2) {
-                    const index = (y * tempCanvas.width + x) * 4;
-                    const alpha = pixels[index + 3];
-                    if (alpha > 0) {
-                        textPixels.push({ x: x, y: y });
-                    }
-                }
-            }
-            return textPixels;
-        };
-
-        const textPixels = getTextPixels(RADIANCE_WORD, TEXT_SIZE, TEXT_FONT, ctx);
-
-        particlesRef.current = [];
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const x = Math.random() * canvas.width;
-            const y = Math.random() * canvas.height;
-            const radius = PARTICLE_RADIUS + Math.random() * 0.5;
-            const targetPixel = textPixels[i % textPixels.length];
-            const particle = new Particle(x, y, radius, PARTICLE_COLOR);
-            particle.initialX = x;
-            particle.initialY = y;
-            if (targetPixel) {
-                particle.targetX = targetPixel.x;
-                particle.targetY = targetPixel.y;
-            } else {
-                particle.targetX = Math.random() * canvas.width;
-                particle.targetY = Math.random() * canvas.height;
-            }
-            particlesRef.current.push(particle);
-        }
+        // Initial particle setup
+        initializeParticles(canvas.width, canvas.height);
 
         let cubeAngleX = 0;
         let cubeAngleY = 0;
         const CUBE_OFFSET_Y = 100;
 
         const drawCube = (ctx, centerX, centerY) => {
-            const CUBE_SIZE = 80;
+            const CUBE_SIZE = 80; // This can also be made responsive if the cube needs to scale
             const vertices = [
                 [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
                 [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
@@ -235,6 +268,13 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                     phaseStartTime = currentTime;
                 }
             } else if (animationPhase === 'formedAndIdle') {
+                // Keep particles at target positions during idle
+                particlesRef.current.forEach(p => {
+                    p.x = p.targetX;
+                    p.y = p.targetY;
+                    p.alpha = 1; // Ensure full visibility
+                });
+
                 const idleDuration = 15000; // 15 seconds for formed text to stay
                 if (elapsedTime >= idleDuration) {
                     setAnimationPhase('scattering');
@@ -247,7 +287,6 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                             p.rotation = Math.random() * Math.PI * 2;
                             p.rotationSpeed = (Math.random() - 0.5) * 0.08;
                             p.color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
-                            // Increased radius for scattered petals relative to new PARTICLE_RADIUS
                             p.radius = PARTICLE_RADIUS * 3 + Math.random() * 2;
                         });
                         initialScatteringSetupDoneRef.current = true;
@@ -267,18 +306,20 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                     return;
                 }
             }
-
             animationFrameIdRef.current = requestAnimationFrame(animate);
         };
 
         animationFrameIdRef.current = requestAnimationFrame(animate);
 
+        // Cleanup function for initial setup
         return () => {
             if (animationFrameIdRef.current) {
                 cancelAnimationFrame(animationFrameIdRef.current);
             }
+            // Resources disposal for renderer, controls (if any are initialized here)
         };
-    }, [animationPhase, onAnimationComplete, setAnimationPhase]);
+    }, [animationPhase, onAnimationComplete, setAnimationPhase, initializeParticles]); // Added initializeParticles to dependency array
+
 
     useEffect(() => {
         const handleResize = () => {
@@ -286,21 +327,136 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
             if (canvas) {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
+                // Re-initialize particles to new positions based on new canvas size
+                initializeParticles(canvas.width, canvas.height);
+
+                // If the animation was in 'formedAndIdle' or 'scattering',
+                // set it back to 'forming' to ensure a smooth re-formation of text
+                if (animationPhase === 'formedAndIdle' || animationPhase === 'scattering') {
+                    setAnimationPhase('forming');
+                    // Reset initialScatteringSetupDoneRef to allow re-scattering if it gets to that phase again
+                    initialScatteringSetupDoneRef.current = false;
+                }
             }
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    }, [animationPhase, initializeParticles, setAnimationPhase]); // Add animationPhase and setAnimationPhase to dependencies
 
     return (
         <div
             className={`intro-animation-container ${animationPhase === 'done' ? 'done' : 'active'}`}
         >
             <canvas ref={canvasRef} className="intro-canvas"></canvas>
-            {/* Removed the loading text here */}
         </div>
     );
 };
+
+// ThreeDViewer component using Canvas 2D for a rotating cube
+const ThreeDViewer = () => {
+    const canvasRef = useRef(null);
+    let animationFrameId;
+    let angleX = 0;
+    let angleY = 0;
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+
+        const resizeCanvas = () => {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        };
+
+        // Call resize initially and on window resize
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        const cubeSize = 50; // Size of the cube
+        const vertices = [
+            [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+            [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
+        ].map(v => v.map(coord => coord * cubeSize / 2));
+
+        const edges = [
+            [0, 1], [1, 2], [2, 3], [3, 0], // Front face
+            [4, 5], [5, 6], [6, 7], [7, 4], // Back face
+            [0, 4], [1, 5], [2, 6], [3, 7]  // Connecting edges
+        ];
+
+        const animate = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Apply rotation
+            angleX += 0.01;
+            angleY += 0.01;
+
+            const rotateX = (x, y, z, angle) => {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                return { x: x, y: y * cos - z * sin, z: y * sin + z * cos };
+            };
+
+            const rotateY = (x, y, z, angle) => {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                return { x: z * sin + x * cos, y: y, z: z * cos - x * sin };
+            };
+
+            const fov = 250; // Field of view for perspective
+            const viewDistance = 200; // Distance from viewer to projection plane
+
+            const perspectiveProjection = (x, y, z, fov, viewDistance) => {
+                const scale = fov / (viewDistance + z);
+                return { x: x * scale, y: y * scale };
+            };
+
+            const transformedVertices = vertices.map(v => {
+                let p = { x: v[0], y: v[1], z: v[2] };
+                p = rotateX(p.x, p.y, p.z, angleX);
+                p = rotateY(p.x, p.y, p.z, angleY);
+                const projected = perspectiveProjection(p.x, p.y, p.z, fov, viewDistance);
+                return {
+                    x: projected.x + centerX,
+                    y: projected.y + centerY
+                };
+            });
+
+            ctx.strokeStyle = '#000000'; // Black color for the cube lines
+            ctx.lineWidth = 2;
+
+            edges.forEach(edge => {
+                const p1 = transformedVertices[edge[0]];
+                const p2 = transformedVertices[edge[1]];
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            });
+
+            animationFrameId = requestAnimationFrame(animate);
+        };
+
+        animate(); // Start the animation loop
+
+        // Cleanup function
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+            window.removeEventListener('resize', resizeCanvas);
+        };
+    }, []); // Empty dependency array means this effect runs once on mount
+
+    return (
+        <canvas
+            ref={canvasRef}
+            style={{ width: '100%', height: '100%', display: 'block' }}
+        ></canvas>
+    );
+};
+
 
 // Main App component
 const App = () => {
@@ -485,16 +641,12 @@ const App = () => {
                         Our Gallery
                     </h2>
                     <div className="gallery-grid">
-                        {/* Image Card 1 */}
+                        {/* Image Card 1: Replaced with 3D Viewer (now a cube) */}
                         <div
                             className="gallery-card"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} // Added flex for centering 3D viewer
                         >
-                            <img
-                                src="https://placehold.co/600x400/32CD32/FFFFFF?text=Image+1" // Replace with your image URL
-                                alt="Gallery Image 1"
-                                className="gallery-image"
-                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
-                            />
+                            <ThreeDViewer /> {/* No modelPath needed for a basic cube */}
                         </div>
                         {/* Image Card 2 */}
                         <div
