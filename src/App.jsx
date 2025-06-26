@@ -17,19 +17,24 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     const animationFrameIdRef = useRef(null); // Ref to store requestAnimationFrame ID
     const initialScatteringSetupDoneRef = useRef(false); // Track if initial scatter setup has run
 
-    // Constants for the animation
-   const PARTICLE_COUNT = 4000;
 const TEXT_FONT = 'Inter, sans-serif';
 const RADIANCE_WORD = 'CHI BOTANICAL';
 const PARTICLE_COLOR = '#90EE90'; // Original lighter green
 const FLOWER_COLORS = [
     '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
 ];
-const PARTICLE_RADIUS = 2.5;
+
+// Define a common breakpoint for phone screens (e.g., 768px)
+const IS_PHONE_SCREEN = window.innerWidth <= 768; // You can adjust this breakpoint as needed
 
 // Determine TEXT_SIZE based on screen width
-const TEXT_SIZE = window.innerWidth <= 768 ? 38 : 85; // Assuming 768px as a common breakpoint for mobile devices. You can adjust this. // Increased from 2 to 2.5 for more visible particles
+const TEXT_SIZE = IS_PHONE_SCREEN ? 38 : 85;
 
+// Determine PARTICLE_COUNT based on screen width
+const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000; // Reduced to 1500 for phones, original 4000 for laptops
+
+// Determine PARTICLE_RADIUS based on screen width
+const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phones, original 2.5 for laptops
     // Particle class definition
     class Particle {
         constructor(x, y, radius, color) {
