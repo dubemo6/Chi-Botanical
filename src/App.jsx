@@ -30,7 +30,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     ];
 
     const IS_PHONE_SCREEN = window.innerWidth <= 768;
-    const TEXT_SIZE = IS_PHONE_SCREEN ? 34 : 85;
+    const TEXT_SIZE = IS_PHONE_SCREEN ? 38 : 85;
     const PARTICLE_COUNT = IS_PHONE_SCREEN ? 2200 : 4000;
     const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
      const LETTER_SPACING =  IS_PHONE_SCREEN ? 1.2 : 2.5;
