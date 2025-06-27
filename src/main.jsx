@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client'; // Important: Notice '/client' for createRoot
 import App from './App.jsx'; // Make sure this path is correct for your App component
+import './index.css'; // Import your global styles
 
 // Find the root HTML element where your React application will be mounted
 const rootElement = document.getElementById('root');
