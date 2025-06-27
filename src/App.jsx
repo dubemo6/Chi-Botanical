@@ -30,10 +30,10 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     ];
 
     const IS_PHONE_SCREEN = window.innerWidth <= 768;
-    const TEXT_SIZE = IS_PHONE_SCREEN ? 50 : 85;
-    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000;
+    const TEXT_SIZE = IS_PHONE_SCREEN ? 30 : 85;
+    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 2000 : 4000;
     const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
-     const LETTER_SPACING =  IS_PHONE_SCREEN ? 1.5 : 2.5;
+     const LETTER_SPACING =  IS_PHONE_SCREEN ? 1 : 2.5;
     class Particle {
         constructor(x, y, radius, color) {
             this.x = x;
