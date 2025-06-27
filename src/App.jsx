@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect, useEffect, useState, useCallback } from 'react';
 import image1 from './assets/download.webp';
 import image2 from './assets/GettyImages-482350860 (1).webp';
 import image3 from './assets/luxury-nail-manicure.jpg';
@@ -6,35 +6,34 @@ import image4 from './assets/Mesotherapy-min-450x433.png';
 import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
 
-// Removed ReactDOM import from here as it's now handled in main.jsx
-// Firebase imports have been removed as per your request for client-side booking.
-
-// Particle Intro Animation Component (remains at the top as it's used by App)
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
-    
     const canvasRef = useRef(null);
     const particlesRef = useRef([]); // Ref to store particles
     const animationFrameIdRef = useRef(null); // Ref to store requestAnimationFrame ID
     const initialScatteringSetupDoneRef = useRef(false); // Track if initial scatter setup has run
 
-const TEXT_FONT = 'Inter, sans-serif';
-const RADIANCE_WORD = 'CHI BOTANICAL';
-const PARTICLE_COLOR = '#90EE90'; // Original lighter green
-const FLOWER_COLORS = [
-    '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
-];
+    const TEXT_FONT = 'Inter, sans-serif';
+    const RADIANCE_WORD = 'CHI BOTANICAL';
+    // --- Add this new constant for letter spacing ---
+    const LETTER_SPACING = 15; // Adjust this value (in pixels) to control spacing
+    // -------------------------------------------------
+    const PARTICLE_COLOR = '#90EE90'; // Original lighter green
+    const FLOWER_COLORS = [
+        '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
+    ];
 
-// Define a common breakpoint for phone screens (e.g., 768px)
-const IS_PHONE_SCREEN = window.innerWidth <= 768; // You can adjust this breakpoint as needed
+    // Define a common breakpoint for phone screens (e.g., 768px)
+    const IS_PHONE_SCREEN = window.innerWidth <= 768; // You can adjust this breakpoint as needed
 
-// Determine TEXT_SIZE based on screen width
-const TEXT_SIZE = IS_PHONE_SCREEN ? 38 : 85;
+    // Determine TEXT_SIZE based on screen width
+    const TEXT_SIZE = IS_PHONE_SCREEN ? 38 : 85;
 
-// Determine PARTICLE_COUNT based on screen width
-const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000; // Reduced to 1500 for phones, original 4000 for laptops
+    // Determine PARTICLE_COUNT based on screen width
+    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000; // Reduced to 1500 for phones, original 4000 for laptops
 
-// Determine PARTICLE_RADIUS based on screen width
-const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phones, original 2.5 for laptops
+    // Determine PARTICLE_RADIUS based on screen width
+    const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phones, original 2.5 for laptops
+
     // Particle class definition
     class Particle {
         constructor(x, y, radius, color) {
@@ -103,17 +102,41 @@ const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phone
             return;
         }
 
+        // --- MODIFIED getTextPixels function ---
         const getTextPixels = (text, fontSize, font, ctx) => {
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = ctx.canvas.width;
             tempCanvas.height = ctx.canvas.height;
             tempCtx.font = `${fontSize}px ${font}`;
-            tempCtx.textAlign = 'center';
-            tempCtx.textBaseline = 'middle';
-            tempCtx.fillStyle = '#000';
-            tempCtx.fillText(text, tempCanvas.width / 2, tempCanvas.height / 2);
-            
+            tempCtx.textBaseline = 'middle'; // Align text vertically in the middle
+            tempCtx.fillStyle = '#000'; // Draw in black to get pixel data
+
+            // Calculate the total width of the text including letter spacing
+            let totalTextWidth = 0;
+            const charWidths = [];
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const charWidth = tempCtx.measureText(char).width;
+                charWidths.push(charWidth);
+                totalTextWidth += charWidth;
+                if (i < text.length - 1) { // Add spacing for all characters except the last one
+                    totalTextWidth += LETTER_SPACING;
+                }
+            }
+
+            // Calculate the starting X position to center the entire text block
+            let currentX = (tempCanvas.width / 2) - (totalTextWidth / 2);
+            const centerY = tempCanvas.height / 2; // Y coordinate for the text
+
+            // Draw each character individually with spacing
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                tempCtx.fillText(char, currentX, centerY);
+                currentX += charWidths[i] + LETTER_SPACING;
+            }
+            // --- END MODIFIED getTextPixels function ---
+
             if (tempCanvas.width === 0 || tempCanvas.height === 0) {
                 console.error("Temporary canvas dimensions are zero. Cannot get image data.");
                 return [];
@@ -137,25 +160,24 @@ const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phone
         const textPixels = getTextPixels(RADIANCE_WORD, TEXT_SIZE, TEXT_FONT, ctx);
 
         particlesRef.current = [];
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const radius = PARTICLE_RADIUS + Math.random() * 0.5;
-    const targetPixel = textPixels[i % textPixels.length];
-    // Pick a random color for each particle
-    const color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
-    const particle = new Particle(x, y, radius, color);
-    particle.initialX = x;
-    particle.initialY = y;
-    if (targetPixel) {
-        particle.targetX = targetPixel.x;
-        particle.targetY = targetPixel.y;
-    } else {
-        particle.targetX = Math.random() * canvas.width;
-        particle.targetY = Math.random() * canvas.height;
-    }
-    particlesRef.current.push(particle);
-}
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const radius = PARTICLE_RADIUS + Math.random() * 0.5;
+            const targetPixel = textPixels[i % textPixels.length];
+            const color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
+            const particle = new Particle(x, y, radius, color);
+            particle.initialX = x;
+            particle.initialY = y;
+            if (targetPixel) {
+                particle.targetX = targetPixel.x;
+                particle.targetY = targetPixel.y;
+            } else {
+                particle.targetX = Math.random() * canvas.width;
+                particle.targetY = Math.random() * canvas.height;
+            }
+            particlesRef.current.push(particle);
+        }
 
         let cubeAngleX = 0;
         let cubeAngleY = 0;
@@ -294,7 +316,7 @@ const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phone
                 cancelAnimationFrame(animationFrameIdRef.current);
             }
         };
-    }, [animationPhase, onAnimationComplete, setAnimationPhase]);
+    }, [animationPhase, onAnimationComplete, setAnimationPhase]); // Dependencies updated
 
     useEffect(() => {
         const handleResize = () => {
@@ -318,7 +340,7 @@ const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phone
     );
 };
 
-// Main App component
+// Main App component (assuming this is in the same file or imported)
 const App = () => {
     // State to manage the visibility of the intro animation and main content
     const [showIntro, setShowIntro] = useState(true);
@@ -354,7 +376,8 @@ const App = () => {
         }
     };
 
-
+    // Placeholder image imports for demonstration (replace with your actual imports)
+   
     return (
         <div className="app-container">
             {/* Conditional rendering of the IntroAnimation component */}
@@ -427,9 +450,9 @@ const App = () => {
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paintbrush">
-                                    <path d="M18.37 2.63c-2.44-.94-5.3-.2-7.22 1.72L3 13.5V19h5.5l9.55-9.55c1.92-1.92 2.66-4.78 1.72-7.22l-.45-.45Z"/>
-                                    <path d="M15 5l4 4"/>
-                                    <path d="M10.5 9.5L1.5 18.5"/>
+                                    <path d="M18.37 2.63c-2.44-.94-5.3-.2-7.22 1.72L3 13.5V19h5.5l9.55-9.55c1.92-1.92 2.66-4.78 1.72-7.22l-.45-.45Z" />
+                                    <path d="M15 5l4 4" />
+                                    <path d="M10.5 9.5L1.5 18.5" />
                                 </svg>
                             </div>
                             <h3 className="offering-title">Signature Facial Makeup</h3>
@@ -451,7 +474,7 @@ const App = () => {
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucude-hand">
-                                    <path d="M18 11.4V22h-4V12.4L7.5 6H4c0-1.5 1.5-3 3-3h5.4L18 11.4z"/>
+                                    <path d="M18 11.4V22h-4V12.4L7.5 6H4c0-1.5 1.5-3 3-3h5.4L18 11.4z" />
                                 </svg>
                             </div>
                             <h3 className="offering-title">Gel Manicure Artistry</h3>
@@ -473,9 +496,9 @@ const App = () => {
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-feather">
-                                    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/>
-                                    <path d="M16 8L2 22"/>
-                                    <path d="M17.5 15H9"/>
+                                    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                                    <path d="M16 8L2 22" />
+                                    <path d="M17.5 15H9" />
                                 </svg>
                             </div>
                             <h3 className="offering-title">Bridal Radiance Makeup</h3>
@@ -506,10 +529,10 @@ const App = () => {
                             className="gallery-card"
                         >
                             <img
-                                   src={image1}
-            alt="Gallery Image 1"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                src={image1}
+                                alt="Gallery Image 1"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                         {/* Image Card 2 */}
@@ -517,10 +540,10 @@ const App = () => {
                             className="gallery-card"
                         >
                             <img
-                               src={image2}
-            alt="Gallery Image 2"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                src={image2}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                         {/* Image Card 3 */}
@@ -528,10 +551,10 @@ const App = () => {
                             className="gallery-card"
                         >
                             <img
-                         src={image3}
-            alt="Gallery Image 2"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                src={image3}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                         {/* Image Card 4 */}
@@ -539,10 +562,10 @@ const App = () => {
                             className="gallery-card"
                         >
                             <img
-                              src={image4}
-            alt="Gallery Image 2"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                src={image4}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                         {/* Image Card 5 */}
@@ -550,10 +573,10 @@ const App = () => {
                             className="gallery-card"
                         >
                             <img
-                                 src={image5}
-            alt="Gallery Image 2"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                src={image5}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                         {/* Image Card 6 */}
@@ -562,9 +585,9 @@ const App = () => {
                         >
                             <img
                                 src={image6}
-            alt="Gallery Image 2"
-            className="gallery-image"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
                     </div>
@@ -687,7 +710,13 @@ const App = () => {
                     transform: scale(1.05); /* hover:scale-105 */
                 }
 
-              
+                .down-arrow {
+                    position: absolute;
+                    bottom: 2rem; /* bottom-8 */
+                    color: #fff;
+                    font-size: 2.5rem; /* text-4xl */
+                    animation: bounce 1s infinite;
+                }
 
                 @media (min-width: 768px) { /* md */
                     .down-arrow {
@@ -1082,6 +1111,7 @@ const App = () => {
                 .calendar-navigation-button:hover {
                     background-color: #059669; /* hover:bg-green-600 */
                 }
+
                 .calendar-navigation-title {
                     font-size: 1.25rem; /* text-xl */
                     font-weight: 600; /* font-semibold */
@@ -1550,8 +1580,10 @@ const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.for
         setMessage(''); // Clear any previous messages
         setMessageType(''); // Clear message type
     }, [service]);
+
     // Local state to simulate booked slots for the current session (no persistence without Firebase)
     const [bookedSlots, setBookedSlots] = useState([]); // Stores { date: 'YYYY-MM-DD', time: 'HH:MM AM/PM' }
+
     // State for the calendar and form
     const [bookingStep, setBookingStep] = useState('selectDateTime'); // 'selectDateTime', 'confirmDetails', 'bookingSuccess', 'bookingFailure'
     const [selectedDate, setSelectedDate] = useState(null); // Format: 'YYYY-MM-DD'
@@ -1577,10 +1609,10 @@ const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.for
 
     const generateTimeSlots = () => {
         const slots = [];
-        for (let i = 9; i < 20; i++) { // 9 AM to 4 PM
+        for (let i = 9; i < 17; i++) { // 9 AM to 4 PM
             slots.push(`${i}:00 AM`);
             // Add half-hour slots for more flexibility
-            if (i < 20) { // Don't add 4:30 PM
+            if (i < 16) { // Don't add 4:30 PM
                 slots.push(`${i}:30 AM`);
             }
         }
