@@ -1,40 +1,191 @@
-import React, { useRef, useLayoutEffect, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+  import 'bootstrap/dist/css/bootstrap.min.css';
+// Assuming image imports are correctly handled elsewhere, e.g.:
 import image1 from './assets/download.webp';
 import image2 from './assets/GettyImages-482350860 (1).webp';
 import image3 from './assets/luxury-nail-manicure.jpg';
 import image4 from './assets/Mesotherapy-min-450x433.png';
 import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
+import image7 from './assets/Screenshot 2025-06-27 055142.png';
 
+// --- ThreeDViewer Component (now embedded directly in App.jsx) ---
+const ThreeDViewer = ({ modelPath }) => {
+    const mountRef = useRef(null);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [modelError, setModelError] = useState(null);
+
+    useEffect(() => {
+        let scene, camera, renderer, brick, controls, animationFrameId;
+
+        const currentMount = mountRef.current;
+        if (!currentMount) {
+            console.error("Three.js mount container not found.");
+            return;
+        }
+
+        // --- Scene Setup ---
+        scene = new THREE.Scene();
+
+        // Set up camera
+        camera = new THREE.PerspectiveCamera(75, currentMount.offsetWidth / currentMount.offsetHeight, 0.1, 1000);
+        camera.position.set(0, 0.2, 0.5);
+        camera.lookAt(scene.position);
+
+        // Set up renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(currentMount.offsetWidth, currentMount.offsetHeight);
+        renderer.setClearColor(0xf2f2f2, 0); // Set alpha to 0 for transparency
+        currentMount.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(1, 1, 2);
+        scene.add(directionalLight);
+
+        // --- Load 3D model ---
+        const gltfloader = new GLTFLoader();
+        // Use import.meta.env.BASE_URL for Vite projects
+        // This will correctly resolve to /brick.glb because your modelPath is just that.
+        const fullModelPath = `${import.meta.env.BASE_URL || ''}${modelPath}`;
+
+        gltfloader.load(
+            fullModelPath,
+            (gltf) => {
+                brick = gltf.scene;
+                // Center the model
+                const boundingBox = new THREE.Box3().setFromObject(brick);
+                const center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                brick.position.x = -center.x;
+                brick.position.y = -center.y;
+                brick.position.z = -center.z;
+
+                // Adjust scale if needed
+                brick.scale.set(0.7, 0.7, 0.7); // Example: adjust this if your model is too large/small
+
+                scene.add(brick);
+
+                // --- OrbitControls Setup ---
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.1;
+                controls.enableZoom = false;
+                controls.enablePan = false;
+                controls.enableRotate = true;
+                controls.target.set(0, 0, 0);
+                controls.minDistance = 0.3;
+                controls.maxDistance = 1.0;
+                controls.update();
+
+                // Start animation loop after model is loaded
+                animate();
+                updateRendererSize(); // Call resize after model and controls setup
+                setLoadingProgress(100); // Set to 100% on successful load
+            },
+            (xhr) => {
+                // This function is called during loading to update progress
+                setLoadingProgress(Math.round(xhr.loaded / xhr.total * 100));
+            },
+            (error) => {
+                // This function is called if the model fails to load
+                console.error('Failed to load model:', error); // Log detailed error to console
+                setModelError('Failed to load 3D model. Check console for details.'); // Set user-friendly error message
+            }
+        );
+
+        // --- Animation Loop ---
+        const animate = () => {
+            animationFrameId = requestAnimationFrame(animate);
+            if (brick) {
+                // Apply rotation
+                brick.rotation.y += 0.005; // Slower rotation
+                brick.rotation.x += 0.003; // Slower rotation
+            }
+            if (controls) controls.update(); // Only update if controls exist
+            renderer.render(scene, camera);
+        };
+
+        // --- Handle Resizing ---
+        const updateRendererSize = () => {
+            const containerWidth = currentMount.offsetWidth;
+            const containerHeight = currentMount.offsetHeight;
+            camera.aspect = containerWidth / containerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(containerWidth, containerHeight);
+        };
+        window.addEventListener('resize', updateRendererSize, false);
+
+        // --- Cleanup function (runs when component unmounts) ---
+        return () => {
+            cancelAnimationFrame(animationFrameId); // Stop animation loop
+            window.removeEventListener('resize', updateRendererSize, false); // Remove resize listener
+
+            // Dispose of Three.js resources to prevent memory leaks
+            if (controls) controls.dispose();
+            if (renderer) renderer.dispose();
+            if (scene) {
+                scene.traverse((object) => {
+                    if (object.isMesh) {
+                        object.geometry.dispose();
+                        if (Array.isArray(object.material)) {
+                            object.material.forEach(material => material.dispose());
+                        } else {
+                            object.material.dispose();
+                        }
+                    }
+                });
+            }
+            if (currentMount && renderer.domElement) {
+                currentMount.removeChild(renderer.domElement);
+            }
+        };
+    }, [modelPath]);
+
+    return (
+        <div
+            ref={mountRef}
+            style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+        >
+            {/* Loading / Error UI */}
+            {loadingProgress < 100 && !modelError && (
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#000', zIndex: 10 }}>
+                    Loading: {loadingProgress}%
+                </div>
+            )}
+            {modelError && (
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'red', color: 'white', padding: '20px', zIndex: 10 }}>
+                    {modelError}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- IntroAnimation Component (Modified to include ThreeDViewer) ---
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
     const canvasRef = useRef(null);
-    const particlesRef = useRef([]); // Ref to store particles
-    const animationFrameIdRef = useRef(null); // Ref to store requestAnimationFrame ID
-    const initialScatteringSetupDoneRef = useRef(false); // Track if initial scatter setup has run
+    const particlesRef = useRef([]);
+    const animationFrameIdRef = useRef(null);
+    const initialScatteringSetupDoneRef = useRef(false);
 
     const TEXT_FONT = 'Inter, sans-serif';
     const RADIANCE_WORD = 'CHI BOTANICAL';
-    // --- Add this new constant for letter spacing ---
-    const LETTER_SPACING = 15; // Adjust this value (in pixels) to control spacing
-    // -------------------------------------------------
-    const PARTICLE_COLOR = '#90EE90'; // Original lighter green
+    
     const FLOWER_COLORS = [
         '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
     ];
 
-    // Define a common breakpoint for phone screens (e.g., 768px)
-    const IS_PHONE_SCREEN = window.innerWidth <= 768; // You can adjust this breakpoint as needed
-
-    // Determine TEXT_SIZE based on screen width
-    const TEXT_SIZE = IS_PHONE_SCREEN ? 38 : 85;
-
-    // Determine PARTICLE_COUNT based on screen width
-    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000; // Reduced to 1500 for phones, original 4000 for laptops
-
-    // Determine PARTICLE_RADIUS based on screen width
-    const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5; // Reduced to 1.0 for phones, original 2.5 for laptops
-
-    // Particle class definition
+    const IS_PHONE_SCREEN = window.innerWidth <= 768;
+    const TEXT_SIZE = IS_PHONE_SCREEN ? 50 : 85;
+    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000;
+    const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
+     const LETTER_SPACING =  IS_PHONE_SCREEN ? 4 : 2.5;
     class Particle {
         constructor(x, y, radius, color) {
             this.x = x;
@@ -102,17 +253,15 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
             return;
         }
 
-        // --- MODIFIED getTextPixels function ---
         const getTextPixels = (text, fontSize, font, ctx) => {
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = ctx.canvas.width;
             tempCanvas.height = ctx.canvas.height;
             tempCtx.font = `${fontSize}px ${font}`;
-            tempCtx.textBaseline = 'middle'; // Align text vertically in the middle
-            tempCtx.fillStyle = '#000'; // Draw in black to get pixel data
+            tempCtx.textBaseline = 'middle'; // Important for accurate vertical centering
+            tempCtx.fillStyle = '#000';
 
-            // Calculate the total width of the text including letter spacing
             let totalTextWidth = 0;
             const charWidths = [];
             for (let i = 0; i < text.length; i++) {
@@ -120,22 +269,26 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                 const charWidth = tempCtx.measureText(char).width;
                 charWidths.push(charWidth);
                 totalTextWidth += charWidth;
-                if (i < text.length - 1) { // Add spacing for all characters except the last one
+                if (i < text.length - 1) {
                     totalTextWidth += LETTER_SPACING;
                 }
             }
 
-            // Calculate the starting X position to center the entire text block
             let currentX = (tempCanvas.width / 2) - (totalTextWidth / 2);
-            const centerY = tempCanvas.height / 2; // Y coordinate for the text
 
-            // Draw each character individually with spacing
+            // Calculate vertical offset to bring text closer to the middle
+            // A positive 'verticalAdjustment' will move it down from the very top
+            // A negative 'verticalAdjustment' will move it up from the very bottom
+            // If you want it exactly centered, set verticalAdjustment to 0.
+            // Adjust this value to fine-tune.
+            const verticalAdjustment = IS_PHONE_SCREEN ? -80 : -70; // Set to 0 for roughly center, adjust +/- as needed
+            const centerY = tempCanvas.height / 2 + verticalAdjustment; // <-- UPDATED LINE for middle adjustment
+
             for (let i = 0; i < text.length; i++) {
                 const char = text[i];
                 tempCtx.fillText(char, currentX, centerY);
                 currentX += charWidths[i] + LETTER_SPACING;
             }
-            // --- END MODIFIED getTextPixels function ---
 
             if (tempCanvas.width === 0 || tempCanvas.height === 0) {
                 console.error("Temporary canvas dimensions are zero. Cannot get image data.");
@@ -179,67 +332,6 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
             particlesRef.current.push(particle);
         }
 
-        let cubeAngleX = 0;
-        let cubeAngleY = 0;
-        const CUBE_OFFSET_Y = 100;
-
-        const drawCube = (ctx, centerX, centerY) => {
-            const CUBE_SIZE = 80;
-            const vertices = [
-                [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-                [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
-            ].map(v => v.map(coord => coord * CUBE_SIZE / 2));
-
-            const edges = [
-                [0, 1], [1, 2], [2, 3], [3, 0],
-                [4, 5], [5, 6], [6, 7], [7, 4],
-                [0, 4], [1, 5], [2, 6], [3, 7]
-            ];
-
-            const rotateX = (x, y, z, angle) => {
-                const cos = Math.cos(angle);
-                const sin = Math.sin(angle);
-                return { x: x, y: y * cos - z * sin, z: y * sin + z * cos };
-            };
-
-            const rotateY = (x, y, z, angle) => {
-                const cos = Math.cos(angle);
-                const sin = Math.sin(angle);
-                return { x: z * sin + x * cos, y: y, z: z * cos - x * sin };
-            };
-
-            const fov = 250;
-            const viewDistance = 200;
-
-            const perspectiveProjection = (x, y, z, fov, viewDistance) => {
-                const scale = fov / (viewDistance + z);
-                return { x: x * scale, y: y * scale };
-            };
-
-            const transformedVertices = vertices.map(v => {
-                let p = { x: v[0], y: v[1], z: v[2] };
-                p = rotateX(p.x, p.y, p.z, cubeAngleX);
-                p = rotateY(p.x, p.y, p.z, cubeAngleY);
-                const projected = perspectiveProjection(p.x, p.y, p.z, fov, viewDistance);
-                return {
-                    x: projected.x + centerX,
-                    y: projected.y + centerY
-                };
-            });
-
-            ctx.strokeStyle = 'rgba(0, 251, 0, 1)';
-            ctx.lineWidth = 2;
-
-            edges.forEach(edge => {
-                const p1 = transformedVertices[edge[0]];
-                const p2 = transformedVertices[edge[1]];
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-            });
-        };
-
         let animationProgress = 0;
         let phaseStartTime = null;
 
@@ -249,16 +341,10 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (animationPhase === 'forming' || animationPhase === 'formedAndIdle') {
-                drawCube(ctx, canvas.width / 2, canvas.height / 2 + CUBE_OFFSET_Y);
-                cubeAngleX += 0.005;
-                cubeAngleY += 0.007;
-            }
-
             particlesRef.current.forEach(p => p.draw(ctx));
 
             if (animationPhase === 'forming') {
-                const formingDuration = 15000; // 6 seconds for forming
+                const formingDuration = 15000;
                 animationProgress = Math.min(1, elapsedTime / formingDuration);
                 particlesRef.current.forEach(p => {
                     p.updateForForming(animationProgress * 0.05);
@@ -273,7 +359,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                     phaseStartTime = currentTime;
                 }
             } else if (animationPhase === 'formedAndIdle') {
-                const idleDuration = 2000; // 15 seconds for formed text to stay
+                const idleDuration = 2000;
                 if (elapsedTime >= idleDuration) {
                     setAnimationPhase('scattering');
                     phaseStartTime = currentTime;
@@ -285,14 +371,13 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                             p.rotation = Math.random() * Math.PI * 2;
                             p.rotationSpeed = (Math.random() - 0.5) * 0.08;
                             p.color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
-                            // Increased radius for scattered petals relative to new PARTICLE_RADIUS
                             p.radius = PARTICLE_RADIUS * 3 + Math.random() * 2;
                         });
                         initialScatteringSetupDoneRef.current = true;
                     }
                 }
             } else if (animationPhase === 'scattering') {
-                const scatteringDuration = 4000; // 4 seconds for scattering
+                const scatteringDuration = 4000;
                 let allFaded = true;
                 particlesRef.current.forEach(p => {
                     p.updateForScattering();
@@ -316,7 +401,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                 cancelAnimationFrame(animationFrameIdRef.current);
             }
         };
-    }, [animationPhase, onAnimationComplete, setAnimationPhase]); // Dependencies updated
+    }, [animationPhase, onAnimationComplete, setAnimationPhase]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -333,54 +418,69 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     return (
         <div
             className={`intro-animation-container ${animationPhase === 'done' ? 'done' : 'active'}`}
+            style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}
         >
-            <canvas ref={canvasRef} className="intro-canvas"></canvas>
-            {/* Removed the loading text here */}
+            {/* The 3D model will be rendered here, *behind* the particles for the text effect */}
+            {/* Z-index of 0 ensures it's at the base layer. */}
+            {(animationPhase === 'forming' || animationPhase === 'formedAndIdle') && (
+                <div style={{
+                    position: 'absolute',
+                    top: '20%',
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 0 // Explicitly setting to 0 to ensure it's the bottom layer
+                }}>
+                    <ThreeDViewer modelPath="/brick.glb" />
+                </div>
+            )}
+            {/* The canvas for particles will be on top. */}
+            {/* Z-index of 10 ensures it's above the 3D model. */}
+            <canvas ref={canvasRef} className="intro-canvas"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 10 // Explicitly setting to a higher value
+                }}
+            ></canvas>
         </div>
     );
 };
 
-// Main App component (assuming this is in the same file or imported)
+// Main App component
 const App = () => {
-    // State to manage the visibility of the intro animation and main content
     const [showIntro, setShowIntro] = useState(true);
-    const [animationPhase, setAnimationPhase] = useState('forming'); // 'forming', 'formedAndIdle', 'scattering', 'done'
+    const [animationPhase, setAnimationPhase] = useState('forming');
 
-    // State for the booking section
-    const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null); // Stores service details for booking
-    const bookingSectionRef = useRef(null); // Ref for the booking section to scroll into view
-    const offeringsSectionRef = useRef(null); // Ref for "The Offerings" section
+    const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
+    const bookingSectionRef = useRef(null);
+    const offeringsSectionRef = useRef(null);
 
-    // Function to handle the completion of the intro animation
     const handleIntroComplete = useCallback(() => {
-        setShowIntro(false); // Hide the intro animation
-        setAnimationPhase('done'); // Mark animation as done
+        setShowIntro(false);
+        setAnimationPhase('done');
     }, []);
 
-    // Function to handle service selection and update booking section
     const handleServiceSelect = (serviceName, servicePrice) => {
         setSelectedServiceForBooking({ name: serviceName, price: servicePrice });
-        // Use a timeout to allow React to update the DOM (change display from none to flex)
-        // before attempting to scroll. This improves reliability.
         setTimeout(() => {
             if (bookingSectionRef.current) {
                 bookingSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-        }, 100); // Small delay
+        }, 100);
     };
 
-    // Handler for "BOOK YOUR EXPERIENCE" button to scroll to offerings
     const handleBookExperienceClick = () => {
         if (offeringsSectionRef.current) {
             offeringsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
 
-    // Placeholder image imports for demonstration (replace with your actual imports)
-   
     return (
         <div className="app-container">
-            {/* Conditional rendering of the IntroAnimation component */}
             {showIntro && (
                 <IntroAnimation
                     onAnimationComplete={handleIntroComplete}
@@ -389,15 +489,13 @@ const App = () => {
                 />
             )}
 
-            {/* Main website content (Hero Section), hidden until intro is complete */}
             <main
                 className={`main-content ${showIntro ? 'main-content-hidden' : 'main-content-visible'}`}
-                style={{ display: showIntro ? 'none' : 'flex' }} // Completely hide until ready for fade-in
+                style={{ display: showIntro ? 'none' : 'flex' }}
             >
-                {/* Background Video */}
                 <video
                     className="background-video"
-                    src="https://videos.pexels.com/video-files/855907/855907-sd_640_360_25fps.mp4" // Placeholder video URL, REPLACE THIS!
+                    src="https://videos.pexels.com/video-files/855907/855907-sd_640_360_25fps.mp4"
                     autoPlay
                     loop
                     muted
@@ -407,10 +505,8 @@ const App = () => {
                     Your browser does not support the video tag.
                 </video>
 
-                {/* Video Overlay for readability */}
                 <div className="video-overlay"></div>
 
-                {/* Content over video */}
                 <div className="hero-content">
                     <h1 className="hero-title">
                         Chi Botanical
@@ -421,15 +517,12 @@ const App = () => {
                     <button className="hero-button" onClick={handleBookExperienceClick}>
                         BOOK YOUR EXPERIENCE
                     </button>
-                    {/* Down arrow icon removed as requested */}
                 </div>
             </main>
 
-            {/* Other sections, fade in after intro */}
             <section
                 className={`section-common ${showIntro ? 'section-hidden' : 'section-visible'}`}
             >
-                {/* Crafted For You Section */}
                 <div className="section-crafted-for-you">
                     <h2 className="section-title">
                         Crafted For You
@@ -440,13 +533,11 @@ const App = () => {
                     </p>
                 </div>
 
-                {/* The Offerings Section */}
-                <div className="section-offerings" ref={offeringsSectionRef}> {/* Added ref here */}
+                <div className="section-offerings" ref={offeringsSectionRef}>
                     <h2 className="section-title">
                         The Offerings
                     </h2>
                     <div className="offerings-grid">
-                        {/* Offering Card 1: Signature Facial Makeup */}
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paintbrush">
@@ -470,7 +561,6 @@ const App = () => {
                             </button>
                         </div>
 
-                        {/* Offering Card 2: Gel Manicure Artistry */}
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucude-hand">
@@ -492,7 +582,6 @@ const App = () => {
                             </button>
                         </div>
 
-                        {/* Offering Card 3: Bridal Radiance Makeup */}
                         <div className="offering-card">
                             <div className="offering-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-feather">
@@ -518,16 +607,12 @@ const App = () => {
                     </div>
                 </div>
 
-                {/* Image Gallery Section */}
                 <div className="section-gallery">
                     <h2 className="section-title">
                         Our Gallery
                     </h2>
                     <div className="gallery-grid">
-                        {/* Image Card 1 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image1}
                                 alt="Gallery Image 1"
@@ -535,10 +620,7 @@ const App = () => {
                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
-                        {/* Image Card 2 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image2}
                                 alt="Gallery Image 2"
@@ -546,10 +628,7 @@ const App = () => {
                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
-                        {/* Image Card 3 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image3}
                                 alt="Gallery Image 2"
@@ -557,10 +636,7 @@ const App = () => {
                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
-                        {/* Image Card 4 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image4}
                                 alt="Gallery Image 2"
@@ -568,10 +644,7 @@ const App = () => {
                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
-                        {/* Image Card 5 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image5}
                                 alt="Gallery Image 2"
@@ -579,10 +652,7 @@ const App = () => {
                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
                             />
                         </div>
-                        {/* Image Card 6 */}
-                        <div
-                            className="gallery-card"
-                        >
+                        <div className="gallery-card">
                             <img
                                 src={image6}
                                 alt="Gallery Image 2"
@@ -593,10 +663,15 @@ const App = () => {
                     </div>
                 </div>
             </section>
-
             {/* Booking Section */}
             {/* Removed conditional visibility as it should always be present now */}
-            <BookingSection service={selectedServiceForBooking} ref={bookingSectionRef} />
+      {!showIntro && (
+    <BookingSection
+        service={selectedServiceForBooking}
+        ref={bookingSectionRef}
+        showIntro={showIntro}
+    />
+)}
 
             {/* Meet The Artist Section */}
             <MeetTheArtistSection show={!showIntro} />
@@ -1565,7 +1640,7 @@ const App = () => {
 
 
 // Booking Section Component (formerly BookingModal)
-const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.forwardRef here
+const BookingSection = React.forwardRef(({ service, showIntro }, ref) => { // Use React.forwardRef here
     // Reset states when service changes (e.g., a new "SELECT SERVICE" button is clicked)
     useEffect(() => {
         setBookingStep('selectDateTime');
@@ -1758,7 +1833,13 @@ const BookingSection = React.forwardRef(({ service }, ref) => { // Use React.for
     const hasServiceSelected = service !== null;
 
     // Render content based on booking step
-    const renderBookingContent = () => {
+      const renderBookingContent = () => {
+        // ADD THIS PART: If the intro is active, render nothing.
+        if (showIntro) {
+            return null;
+        }
+
+        // Existing code: Only show this message if no service is selected AND intro is not active.
         if (!hasServiceSelected) {
             return (
                 <div className="no-service-selected-message">
@@ -2049,7 +2130,12 @@ const MeetTheArtistSection = React.forwardRef(({ show }, ref) => {
                 Meet the Artist
             </h2>
             <div className="artist-photo-placeholder">
-                (Artist photo placeholder)
+                    <img
+                                src={image7}
+                                alt="Gallery Image 2"
+                                className="gallery-image"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/90EE90/000000?text=Image+Error"; }}
+                            />
             </div>
             <p className="artist-description">
                 Driven by a passion for revealing individual beauty, [Artist Name] brings years of experience and a delicate touch to every client interaction. Dedicated
