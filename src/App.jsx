@@ -1,8 +1,7 @@
-import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
+
   import 'bootstrap/dist/css/bootstrap.min.css';
+const ThreeDViewer = lazy(() => import('./ThreeDViewer'));
 // Assuming image imports are correctly handled elsewhere, e.g.:
 import image1 from './assets/download.webp';
 import image2 from './assets/GettyImages-482350860 (1).webp';
@@ -12,161 +11,10 @@ import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
 import image7 from './assets/Screenshot 2025-06-27 055142.png';
 
-// --- ThreeDViewer Component (now embedded directly in App.jsx) ---
-const ThreeDViewer = ({ modelPath }) => {
-    const mountRef = useRef(null);
-    const [loadingProgress, setLoadingProgress] = useState(0);
-    const [modelError, setModelError] = useState(null);
 
-    useEffect(() => {
-        let scene, camera, renderer, brick, controls, animationFrameId;
 
-        const currentMount = mountRef.current;
-        if (!currentMount) {
-            console.error("Three.js mount container not found.");
-            return;
-        }
 
-        // --- Scene Setup ---
-        scene = new THREE.Scene();
-
-        // Set up camera
-        camera = new THREE.PerspectiveCamera(75, currentMount.offsetWidth / currentMount.offsetHeight, 0.1, 1000);
-        camera.position.set(0, 0.2, 0.5);
-        camera.lookAt(scene.position);
-
-        // Set up renderer
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(currentMount.offsetWidth, currentMount.offsetHeight);
-        renderer.setClearColor(0xf2f2f2, 0); // Set alpha to 0 for transparency
-        currentMount.appendChild(renderer.domElement);
-
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-        scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        directionalLight.position.set(1, 1, 2);
-        scene.add(directionalLight);
-
-        // --- Load 3D model ---
-        const gltfloader = new GLTFLoader();
-        // Use import.meta.env.BASE_URL for Vite projects
-        // This will correctly resolve to /brick.glb because your modelPath is just that.
-        const fullModelPath = `${import.meta.env.BASE_URL || ''}${modelPath}`;
-
-        gltfloader.load(
-            fullModelPath,
-            (gltf) => {
-                brick = gltf.scene;
-                // Center the model
-                const boundingBox = new THREE.Box3().setFromObject(brick);
-                const center = new THREE.Vector3();
-                boundingBox.getCenter(center);
-                brick.position.x = -center.x;
-                brick.position.y = -center.y;
-                brick.position.z = -center.z;
-
-                // Adjust scale if needed
-                brick.scale.set(0.7, 0.7, 0.7); // Example: adjust this if your model is too large/small
-
-                scene.add(brick);
-
-                // --- OrbitControls Setup ---
-                controls = new OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.1;
-                controls.enableZoom = false;
-                controls.enablePan = false;
-                controls.enableRotate = true;
-                controls.target.set(0, 0, 0);
-                controls.minDistance = 0.3;
-                controls.maxDistance = 1.0;
-                controls.update();
-
-                // Start animation loop after model is loaded
-                animate();
-                updateRendererSize(); // Call resize after model and controls setup
-                setLoadingProgress(100); // Set to 100% on successful load
-            },
-            (xhr) => {
-                // This function is called during loading to update progress
-                setLoadingProgress(Math.round(xhr.loaded / xhr.total * 100));
-            },
-            (error) => {
-                // This function is called if the model fails to load
-                console.error('Failed to load model:', error); // Log detailed error to console
-                setModelError('Failed to load 3D model. Check console for details.'); // Set user-friendly error message
-            }
-        );
-
-        // --- Animation Loop ---
-        const animate = () => {
-            animationFrameId = requestAnimationFrame(animate);
-            if (brick) {
-                // Apply rotation
-                brick.rotation.y += 0.005; // Slower rotation
-                brick.rotation.x += 0.003; // Slower rotation
-            }
-            if (controls) controls.update(); // Only update if controls exist
-            renderer.render(scene, camera);
-        };
-
-        // --- Handle Resizing ---
-        const updateRendererSize = () => {
-            const containerWidth = currentMount.offsetWidth;
-            const containerHeight = currentMount.offsetHeight;
-            camera.aspect = containerWidth / containerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(containerWidth, containerHeight);
-        };
-        window.addEventListener('resize', updateRendererSize, false);
-
-        // --- Cleanup function (runs when component unmounts) ---
-        return () => {
-            cancelAnimationFrame(animationFrameId); // Stop animation loop
-            window.removeEventListener('resize', updateRendererSize, false); // Remove resize listener
-
-            // Dispose of Three.js resources to prevent memory leaks
-            if (controls) controls.dispose();
-            if (renderer) renderer.dispose();
-            if (scene) {
-                scene.traverse((object) => {
-                    if (object.isMesh) {
-                        object.geometry.dispose();
-                        if (Array.isArray(object.material)) {
-                            object.material.forEach(material => material.dispose());
-                        } else {
-                            object.material.dispose();
-                        }
-                    }
-                });
-            }
-            if (currentMount && renderer.domElement) {
-                currentMount.removeChild(renderer.domElement);
-            }
-        };
-    }, [modelPath]);
-
-    return (
-        <div
-            ref={mountRef}
-            style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
-        >
-            {/* Loading / Error UI */}
-            {loadingProgress < 100 && !modelError && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#000', zIndex: 10 }}>
-                    Loading: {loadingProgress}%
-                </div>
-            )}
-            {modelError && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'red', color: 'white', padding: '20px', zIndex: 10 }}>
-                    {modelError}
-                </div>
-            )}
-        </div>
-    );
-};
-
+   
 // --- IntroAnimation Component (Modified to include ThreeDViewer) ---
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
     const canvasRef = useRef(null);
@@ -185,7 +33,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     const TEXT_SIZE = IS_PHONE_SCREEN ? 50 : 85;
     const PARTICLE_COUNT = IS_PHONE_SCREEN ? 1500 : 4000;
     const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
-     const LETTER_SPACING =  IS_PHONE_SCREEN ? 4 : 2.5;
+     const LETTER_SPACING =  IS_PHONE_SCREEN ? 1.5 : 2.5;
     class Particle {
         constructor(x, y, radius, color) {
             this.x = x;
@@ -431,7 +279,12 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                     height: '100%',
                     zIndex: 0 // Explicitly setting to 0 to ensure it's the bottom layer
                 }}>
-                    <ThreeDViewer modelPath="/brick.glb" />
+                
+
+
+<Suspense fallback={<div>Loading 3D...</div>}>
+  <ThreeDViewer modelPath="/brick.glb" />
+</Suspense>
                 </div>
             )}
             {/* The canvas for particles will be on top. */}
