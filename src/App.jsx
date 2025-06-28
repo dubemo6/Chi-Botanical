@@ -11,7 +11,7 @@ import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
 import image7 from './assets/Screenshot 2025-06-27 055142.png';
 
-
+import image8 from './assets/2324293-hd_1280_720_25fps.mp4';
 
 
    
@@ -348,7 +348,7 @@ const App = () => {
             >
                 <video
                     className="background-video"
-                    src="https://videos.pexels.com/video-files/855907/855907-sd_640_360_25fps.mp4"
+                    src={image8}
                     autoPlay
                     loop
                     muted
