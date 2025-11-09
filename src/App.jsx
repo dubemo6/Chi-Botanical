@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
-
-  import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap/dist/css/bootstrap.min.css';
 const ThreeDViewer = lazy(() => import('./ThreeDViewer'));
+
 // Assuming image imports are correctly handled elsewhere, e.g.:
 import image1 from './assets/download.webp';
 import image2 from './assets/GettyImages-482350860 (1).webp';
@@ -10,354 +10,379 @@ import image4 from './assets/Mesotherapy-min-450x433.png';
 import image5 from './assets/pedicure-2.jpg';
 import image6 from './assets/R (1).jpg';
 import image7 from './assets/Screenshot 2025-06-27 055142.png';
-
 import image8 from './assets/2324293-hd_1280_720_25fps.mp4';
 
+const useModelPreloader = (modelPath) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState(null);
 
-   
-// --- IntroAnimation Component (Modified to include ThreeDViewer) ---
+  useEffect(() => {
+    const preloadModel = async () => {
+      try {
+        const response = await fetch(modelPath);
+        if (!response.ok) throw new Error('Failed to load model');
+        const blob = await response.blob();
+        setIsLoaded(true);
+      } catch (err) {
+        console.error('Model preloading failed:', err);
+        setError(err);
+        setIsLoaded(true);
+      }
+    };
+
+    preloadModel();
+  }, [modelPath]);
+
+  return { isLoaded, error };
+};
+
 const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase }) => {
-    const canvasRef = useRef(null);
-    const particlesRef = useRef([]);
-    const animationFrameIdRef = useRef(null);
-    const initialScatteringSetupDoneRef = useRef(false);
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animationFrameIdRef = useRef(null);
 
-    const TEXT_FONT = 'Inter, sans-serif';
-    const RADIANCE_WORD = 'CHI BOTANICAL';
-    
-    const FLOWER_COLORS = [
-        '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
-    ];
+  const { isLoaded: isModelLoaded } = useModelPreloader("/brick.glb");
 
-    const IS_PHONE_SCREEN = window.innerWidth <= 768;
-    const TEXT_SIZE = IS_PHONE_SCREEN ? 42 : 100;
-    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 2200 : 4500;
-    const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
-     const LETTER_SPACING =  IS_PHONE_SCREEN ? 1.2 : 3.5;
-    class Particle {
-        constructor(x, y, radius, color) {
-            this.x = x;
-            this.y = y;
-            this.targetX = x;
-            this.targetY = y;
-            this.initialX = x;
-            this.initialY = y;
-            this.radius = radius;
-            this.color = color;
-            this.alpha = 1;
-            this.vx = (Math.random() - 0.5) * 2;
-            this.vy = (Math.random() - 0.5) * 2;
-            this.life = 0;
-            this.maxLife = 100 + Math.random() * 50;
-            this.gravity = 0;
-            this.rotation = Math.random() * Math.PI * 2;
-            this.rotationSpeed = 0;
-        }
+  const TEXT_FONT = 'Inter, sans-serif';
+  const RADIANCE_WORD = 'CHI BOTANICAL';
+  
+  const FLOWER_COLORS = [
+    '#98FB98', '#ADFF2F', '#00FA9A', '#3CB371', '#66CDAA', '#7CFC00', '#32CD32'
+  ];
 
-        draw(ctx) {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.rotation);
+  const IS_PHONE_SCREEN = window.innerWidth <= 768;
+  const TEXT_SIZE = IS_PHONE_SCREEN ? 42 : 100;
+  const PARTICLE_COUNT = IS_PHONE_SCREEN ? 2200 : 4500;
+  const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
+  const LETTER_SPACING = IS_PHONE_SCREEN ? 1.2 : 3.5;
 
-            ctx.beginPath();
-            const halfWidth = this.radius * 1.5;
-            const height = this.radius * 4;
-            ctx.moveTo(0, -height / 2);
-            ctx.bezierCurveTo(halfWidth, -height * 0.3, halfWidth, height * 0.3, 0, height / 2);
-            ctx.bezierCurveTo(-halfWidth, height * 0.3, -halfWidth, -height * 0.3, 0, -height / 2);
-            ctx.closePath();
-
-            ctx.fillStyle = this.color;
-            ctx.globalAlpha = this.alpha;
-            ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.restore();
-        }
-
-        updateForForming(progress) {
-            this.x += (this.targetX - this.x) * progress;
-            this.y += (this.targetY - this.y) * progress;
-        }
-
-        updateForScattering() {
-            this.x += this.vx;
-            this.y += this.vy;
-            this.vy += this.gravity;
-            this.rotation += this.rotationSpeed;
-            this.life++;
-            this.alpha = 1 - (this.life / this.maxLife);
-            if (this.alpha <= 0.05) this.alpha = 0;
-        }
+  class Particle {
+    constructor(x, y, radius, color) {
+      this.x = x;
+      this.y = y;
+      this.targetX = x;
+      this.targetY = y;
+      this.initialX = x;
+      this.initialY = y;
+      this.radius = radius;
+      this.color = color;
+      this.alpha = 1;
+      this.vx = 0;
+      this.vy = 0;
+      this.life = 0;
+      this.maxLife = 100 + Math.random() * 50;
+      this.gravity = 0;
+      this.rotation = Math.random() * Math.PI * 2;
+      this.rotationSpeed = 0;
+      this.scatterProgress = 0;
     }
 
-    useLayoutEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
+    draw(ctx) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation);
+
+      ctx.beginPath();
+      const halfWidth = this.radius * 1.5;
+      const height = this.radius * 4;
+      ctx.moveTo(0, -height / 2);
+      ctx.bezierCurveTo(halfWidth, -height * 0.3, halfWidth, height * 0.3, 0, height / 2);
+      ctx.bezierCurveTo(-halfWidth, height * 0.3, -halfWidth, -height * 0.3, 0, -height / 2);
+      ctx.closePath();
+
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = this.alpha;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    updateForForming(progress) {
+      this.x += (this.targetX - this.x) * progress;
+      this.y += (this.targetY - this.y) * progress;
+    }
+
+    updateForReverseScattering(progress) {
+      this.x = this.targetX + (this.initialX - this.targetX) * progress;
+      this.y = this.targetY + (this.initialY - this.targetY) * progress;
+      this.alpha = 1 - progress;
+      this.rotation += 0.02;
+    }
+
+    updateForScattering() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += this.gravity;
+      this.rotation += this.rotationSpeed;
+      this.life++;
+      this.alpha = 1 - (this.life / this.maxLife);
+      if (this.alpha <= 0.05) this.alpha = 0;
+    }
+  }
+
+  useLayoutEffect(() => {
+    if (!isModelLoaded && animationPhase === 'forming') {
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    if (canvas.width === 0 || canvas.height === 0) {
+      console.warn("Canvas dimensions are zero. Skipping initial particle setup.");
+      return;
+    }
+
+    const getTextPixels = (text, fontSize, font, ctx) => {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = ctx.canvas.width;
+      tempCanvas.height = ctx.canvas.height;
+      tempCtx.font = `${fontSize}px ${font}`;
+      tempCtx.textBaseline = 'middle';
+      tempCtx.fillStyle = '#000';
+
+      let totalTextWidth = 0;
+      const charWidths = [];
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const charWidth = tempCtx.measureText(char).width;
+        charWidths.push(charWidth);
+        totalTextWidth += charWidth;
+        if (i < text.length - 1) {
+          totalTextWidth += LETTER_SPACING;
+        }
+      }
+
+      let currentX = (tempCanvas.width / 2) - (totalTextWidth / 2);
+      const verticalAdjustment = IS_PHONE_SCREEN ? -80 : -70;
+      const centerY = tempCanvas.height / 2 + verticalAdjustment;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        tempCtx.fillText(char, currentX, centerY);
+        currentX += charWidths[i] + LETTER_SPACING;
+      }
+
+      if (tempCanvas.width === 0 || tempCanvas.height === 0) {
+        console.error("Temporary canvas dimensions are zero. Cannot get image data.");
+        return [];
+      }
+
+      const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      const pixels = imageData.data;
+      const textPixels = [];
+      for (let y = 0; y < tempCanvas.height; y += 2) {
+        for (let x = 0; x < tempCanvas.width; x += 2) {
+          const index = (y * tempCanvas.width + x) * 4;
+          const alpha = pixels[index + 3];
+          if (alpha > 0) {
+            textPixels.push({ x: x, y: y });
+          }
+        }
+      }
+      return textPixels;
+    };
+
+    const textPixels = getTextPixels(RADIANCE_WORD, TEXT_SIZE, TEXT_FONT, ctx);
+
+    particlesRef.current = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const radius = PARTICLE_RADIUS + Math.random() * 0.5;
+      const targetPixel = textPixels[i % textPixels.length];
+      const color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
+      const particle = new Particle(x, y, radius, color);
+      particle.initialX = x;
+      particle.initialY = y;
+      if (targetPixel) {
+        particle.targetX = targetPixel.x;
+        particle.targetY = targetPixel.y;
+      } else {
+        particle.targetX = Math.random() * canvas.width;
+        particle.targetY = Math.random() * canvas.height;
+      }
+      particlesRef.current.push(particle);
+    }
+
+    let animationProgress = 0;
+    let phaseStartTime = null;
+
+    const animate = (currentTime) => {
+      if (!phaseStartTime) phaseStartTime = currentTime;
+      const elapsedTime = currentTime - phaseStartTime;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      particlesRef.current.forEach(p => p.draw(ctx));
+
+      if (animationPhase === 'forming') {
+        const formingDuration = 15000;
+        animationProgress = Math.min(1, elapsedTime / formingDuration);
+        particlesRef.current.forEach(p => {
+          p.updateForForming(animationProgress * 0.05);
+        });
+
+        if (animationProgress >= 1) {
+          particlesRef.current.forEach(p => {
+            p.x = p.targetX;
+            p.y = p.targetY;
+          });
+          setAnimationPhase('formedAndIdle');
+          phaseStartTime = currentTime;
+        }
+      } else if (animationPhase === 'formedAndIdle') {
+        const idleDuration = 2000;
+        if (elapsedTime >= idleDuration) {
+          setAnimationPhase('scattering');
+          phaseStartTime = currentTime;
+        }
+      } else if (animationPhase === 'scattering') {
+        const scatteringDuration = 3000;
+        const scatterProgress = Math.min(1, elapsedTime / scatteringDuration);
+        
+        particlesRef.current.forEach(p => {
+          p.updateForReverseScattering(scatterProgress);
+        });
+
+        if (scatterProgress >= 1) {
+          setAnimationPhase('done');
+          onAnimationComplete();
+          return;
+        }
+      }
+
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, [animationPhase, onAnimationComplete, setAnimationPhase, isModelLoaded]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const canvas = canvasRef.current;
+      if (canvas) {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-        if (canvas.width === 0 || canvas.height === 0) {
-            console.warn("Canvas dimensions are zero. Skipping initial particle setup.");
-            return;
-        }
-
-        const getTextPixels = (text, fontSize, font, ctx) => {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = ctx.canvas.width;
-            tempCanvas.height = ctx.canvas.height;
-            tempCtx.font = `${fontSize}px ${font}`;
-            tempCtx.textBaseline = 'middle'; // Important for accurate vertical centering
-            tempCtx.fillStyle = '#000';
-
-            let totalTextWidth = 0;
-            const charWidths = [];
-            for (let i = 0; i < text.length; i++) {
-                const char = text[i];
-                const charWidth = tempCtx.measureText(char).width;
-                charWidths.push(charWidth);
-                totalTextWidth += charWidth;
-                if (i < text.length - 1) {
-                    totalTextWidth += LETTER_SPACING;
-                }
-            }
-
-            let currentX = (tempCanvas.width / 2) - (totalTextWidth / 2);
-
-            // Calculate vertical offset to bring text closer to the middle
-            // A positive 'verticalAdjustment' will move it down from the very top
-            // A negative 'verticalAdjustment' will move it up from the very bottom
-            // If you want it exactly centered, set verticalAdjustment to 0.
-            // Adjust this value to fine-tune.
-            const verticalAdjustment = IS_PHONE_SCREEN ? -80 : -70; // Set to 0 for roughly center, adjust +/- as needed
-            const centerY = tempCanvas.height / 2 + verticalAdjustment; // <-- UPDATED LINE for middle adjustment
-
-            for (let i = 0; i < text.length; i++) {
-                const char = text[i];
-                tempCtx.fillText(char, currentX, centerY);
-                currentX += charWidths[i] + LETTER_SPACING;
-            }
-
-            if (tempCanvas.width === 0 || tempCanvas.height === 0) {
-                console.error("Temporary canvas dimensions are zero. Cannot get image data.");
-                return [];
-            }
-
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            const pixels = imageData.data;
-            const textPixels = [];
-            for (let y = 0; y < tempCanvas.height; y += 2) {
-                for (let x = 0; x < tempCanvas.width; x += 2) {
-                    const index = (y * tempCanvas.width + x) * 4;
-                    const alpha = pixels[index + 3];
-                    if (alpha > 0) {
-                        textPixels.push({ x: x, y: y });
-                    }
-                }
-            }
-            return textPixels;
-        };
-
-        const textPixels = getTextPixels(RADIANCE_WORD, TEXT_SIZE, TEXT_FONT, ctx);
-
-        particlesRef.current = [];
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const x = Math.random() * canvas.width;
-            const y = Math.random() * canvas.height;
-            const radius = PARTICLE_RADIUS + Math.random() * 0.5;
-            const targetPixel = textPixels[i % textPixels.length];
-            const color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
-            const particle = new Particle(x, y, radius, color);
-            particle.initialX = x;
-            particle.initialY = y;
-            if (targetPixel) {
-                particle.targetX = targetPixel.x;
-                particle.targetY = targetPixel.y;
-            } else {
-                particle.targetX = Math.random() * canvas.width;
-                particle.targetY = Math.random() * canvas.height;
-            }
-            particlesRef.current.push(particle);
-        }
-
-        let animationProgress = 0;
-        let phaseStartTime = null;
-
-        const animate = (currentTime) => {
-            if (!phaseStartTime) phaseStartTime = currentTime;
-            const elapsedTime = currentTime - phaseStartTime;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            particlesRef.current.forEach(p => p.draw(ctx));
-
-            if (animationPhase === 'forming') {
-                const formingDuration = 15000;
-                animationProgress = Math.min(1, elapsedTime / formingDuration);
-                particlesRef.current.forEach(p => {
-                    p.updateForForming(animationProgress * 0.05);
-                });
-
-                if (animationProgress >= 1) {
-                    particlesRef.current.forEach(p => {
-                        p.x = p.targetX;
-                        p.y = p.targetY;
-                    });
-                    setAnimationPhase('formedAndIdle');
-                    phaseStartTime = currentTime;
-                }
-            } else if (animationPhase === 'formedAndIdle') {
-                const idleDuration = 2000;
-                if (elapsedTime >= idleDuration) {
-                    setAnimationPhase('scattering');
-                    phaseStartTime = currentTime;
-                    if (!initialScatteringSetupDoneRef.current) {
-                        particlesRef.current.forEach(p => {
-                            p.vx = (Math.random() - 0.5) * 40;
-                            p.vy = (Math.random() - 1) * 30;
-                            p.gravity = 0.05 + Math.random() * 0.05;
-                            p.rotation = Math.random() * Math.PI * 2;
-                            p.rotationSpeed = (Math.random() - 0.5) * 0.08;
-                            p.color = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
-                            p.radius = PARTICLE_RADIUS * 3 + Math.random() * 2;
-                        });
-                        initialScatteringSetupDoneRef.current = true;
-                    }
-                }
-            } else if (animationPhase === 'scattering') {
-                const scatteringDuration = 4000;
-                let allFaded = true;
-                particlesRef.current.forEach(p => {
-                    p.updateForScattering();
-                    if (p.alpha > 0) allFaded = false;
-                });
-
-                if (allFaded || elapsedTime >= scatteringDuration) {
-                    setAnimationPhase('done');
-                    onAnimationComplete();
-                    return;
-                }
-            }
-
-            animationFrameIdRef.current = requestAnimationFrame(animate);
-        };
-
-        animationFrameIdRef.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animationFrameIdRef.current) {
-                cancelAnimationFrame(animationFrameIdRef.current);
-            }
-        };
-    }, [animationPhase, onAnimationComplete, setAnimationPhase]);
-
-    useEffect(() => {
-        const handleResize = () => {
-            const canvas = canvasRef.current;
-            if (canvas) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    return (
-        <div
-            className={`intro-animation-container ${animationPhase === 'done' ? 'done' : 'active'}`}
-            style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}
-        >
-            {/* The 3D model will be rendered here, *behind* the particles for the text effect */}
-            {/* Z-index of 0 ensures it's at the base layer. */}
-            {(animationPhase === 'forming' || animationPhase === 'formedAndIdle') && (
-                <div style={{
-                    position: 'absolute',
-                    top: '20%',
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    zIndex: 0 // Explicitly setting to 0 to ensure it's the bottom layer
-                }}>
-                
-
-
-<Suspense fallback={<div>Loading 3D...</div>}>
-  <ThreeDViewer modelPath="/brick.glb" />
-</Suspense>
-                </div>
-            )}
-            {/* The canvas for particles will be on top. */}
-            {/* Z-index of 10 ensures it's above the 3D model. */}
-            <canvas ref={canvasRef} className="intro-canvas"
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    zIndex: 10 // Explicitly setting to a higher value
-                }}
-            ></canvas>
+  return (
+    <div
+      className={`intro-animation-container ${animationPhase === 'done' ? 'done' : 'active'}`}
+      style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}
+    >
+      {!isModelLoaded && animationPhase === 'forming' && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: 'white',
+          zIndex: 1
+        }}>
+          Loading...
         </div>
-    );
+      )}
+
+      {isModelLoaded && (animationPhase === 'forming' || animationPhase === 'formedAndIdle') && (
+        <div style={{
+          position: 'absolute',
+          top: '20%',
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 0
+        }}>
+          <Suspense fallback={<div>Loading 3D...</div>}>
+            <ThreeDViewer modelPath="/brick.glb" />
+          </Suspense>
+        </div>
+      )}
+      
+      <canvas 
+        ref={canvasRef} 
+        className="intro-canvas"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 10
+        }}
+      />
+    </div>
+  );
 };
 
 // Main App component
 const App = () => {
-    const [showIntro, setShowIntro] = useState(true);
-    const [animationPhase, setAnimationPhase] = useState('forming');
+  const [showIntro, setShowIntro] = useState(true);
+  const [animationPhase, setAnimationPhase] = useState('forming');
+  const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
+  const bookingSectionRef = useRef(null);
+  const offeringsSectionRef = useRef(null);
 
-    const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
-    const bookingSectionRef = useRef(null);
-    const offeringsSectionRef = useRef(null);
+  const handleIntroComplete = useCallback(() => {
+    setShowIntro(false);
+    setAnimationPhase('done');
+  }, []);
 
-    const handleIntroComplete = useCallback(() => {
-        setShowIntro(false);
-        setAnimationPhase('done');
-    }, []);
+  const handleServiceSelect = (serviceName, servicePrice) => {
+    setSelectedServiceForBooking({ name: serviceName, price: servicePrice });
+    setTimeout(() => {
+      if (bookingSectionRef.current) {
+        bookingSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
 
-    const handleServiceSelect = (serviceName, servicePrice) => {
-        setSelectedServiceForBooking({ name: serviceName, price: servicePrice });
-        setTimeout(() => {
-            if (bookingSectionRef.current) {
-                bookingSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }, 100);
-    };
+  const handleBookExperienceClick = () => {
+    if (offeringsSectionRef.current) {
+      offeringsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
-    const handleBookExperienceClick = () => {
-        if (offeringsSectionRef.current) {
-            offeringsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    };
+  return (
+    <div className="app-container">
+      {showIntro && (
+        <IntroAnimation
+          onAnimationComplete={handleIntroComplete}
+          animationPhase={animationPhase}
+          setAnimationPhase={setAnimationPhase}
+        />
+      )}
 
-    return (
-        <div className="app-container">
-            {showIntro && (
-                <IntroAnimation
-                    onAnimationComplete={handleIntroComplete}
-                    animationPhase={animationPhase}
-                    setAnimationPhase={setAnimationPhase}
-                />
-            )}
-
-            <main
-                className={`main-content ${showIntro ? 'main-content-hidden' : 'main-content-visible'}`}
-                style={{ display: showIntro ? 'none' : 'flex' }}
-            >
-                <video
-                    className="background-video"
-                    src={image8}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    onError={(e) => console.error("Video loading error:", e)}
-                >
-                    Your browser does not support the video tag.
-                </video>
-
+      <main
+        className={`main-content ${showIntro ? 'main-content-hidden' : 'main-content-visible'}`}
+        style={{ display: showIntro ? 'none' : 'flex' }}
+      >
+        <video
+          className="background-video"
+          src={image8}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onError={(e) => console.error("Video loading error:", e)}
+        >
+          Your browser does not support the video tag.
+        </video>
                 <div className="video-overlay"></div>
 
                 <div className="hero-content">
