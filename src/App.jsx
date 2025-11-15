@@ -1967,6 +1967,8 @@ const BookingSection = React.forwardRef(({ service, showIntro }, ref) => { // Us
                     </div>
                 );
             default:
+
+            
                 return null;
         }
     };
