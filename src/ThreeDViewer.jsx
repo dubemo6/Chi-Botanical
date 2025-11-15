@@ -28,7 +28,7 @@ const ThreeDViewer = ({ modelPath }) => {
         // Set up renderer
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(currentMount.offsetWidth, currentMount.offsetHeight);
-        renderer.setClearColor(0xf2f2f2, 0); // Set alpha to 0 for transparency
+        renderer.setClearColor(0xf2f2f2, 0);
         currentMount.appendChild(renderer.domElement);
 
         // Lighting
@@ -38,10 +38,25 @@ const ThreeDViewer = ({ modelPath }) => {
         directionalLight.position.set(1, 1, 2);
         scene.add(directionalLight);
 
+        // --- FIXED: Model path construction ---
+        const getModelPath = () => {
+            // For Vite, use relative path from public folder
+            if (modelPath.startsWith('/')) {
+                return modelPath; // Absolute path
+            } else if (modelPath.startsWith('./') || modelPath.startsWith('../')) {
+                return modelPath; // Relative path
+            } else {
+                // Assume it's in public/models/ folder
+                return `/models/${modelPath}`;
+            }
+        };
+
+        const fullModelPath = getModelPath();
+        console.log('Loading model from:', fullModelPath);
+
         // --- Load 3D model ---
         const gltfloader = new GLTFLoader();
-        const fullModelPath = `${import.meta.env.BASE_URL || ''}${modelPath}`;
-
+        
         gltfloader.load(
             fullModelPath,
             (gltf) => {
@@ -54,9 +69,7 @@ const ThreeDViewer = ({ modelPath }) => {
                 brick.position.y = -center.y;
                 brick.position.z = -center.z;
 
-                // Adjust scale if needed
                 brick.scale.set(0.7, 0.7, 0.7);
-
                 scene.add(brick);
 
                 // --- OrbitControls Setup ---
@@ -71,17 +84,19 @@ const ThreeDViewer = ({ modelPath }) => {
                 controls.maxDistance = 1.0;
                 controls.update();
 
-                // Start animation loop after model is loaded
                 animate();
                 updateRendererSize();
                 setLoadingProgress(100);
+                setModelError(null); // Clear any previous errors
             },
             (xhr) => {
-                setLoadingProgress(Math.round(xhr.loaded / xhr.total * 100));
+                const progress = xhr.total ? Math.round((xhr.loaded / xhr.total) * 100) : 0;
+                setLoadingProgress(progress);
             },
             (error) => {
                 console.error('Failed to load model:', error);
-                setModelError('Failed to load 3D model. Check console for details.');
+                console.error('Attempted path:', fullModelPath);
+                setModelError(`Failed to load 3D model from: ${fullModelPath}`);
             }
         );
 
@@ -136,13 +151,37 @@ const ThreeDViewer = ({ modelPath }) => {
             style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         >
             {loadingProgress < 100 && !modelError && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#000', zIndex: 10 }}>
+                <div style={{ 
+                    position: 'absolute', 
+                    top: '50%', 
+                    left: '50%', 
+                    transform: 'translate(-50%, -50%)', 
+                    color: '#000', 
+                    zIndex: 10,
+                    backgroundColor: 'rgba(255,255,255,0.8)',
+                    padding: '10px',
+                    borderRadius: '5px'
+                }}>
                     Loading: {loadingProgress}%
                 </div>
             )}
             {modelError && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'red', color: 'white', padding: '20px', zIndex: 10 }}>
+                <div style={{ 
+                    position: 'absolute', 
+                    top: '50%', 
+                    left: '50%', 
+                    transform: 'translate(-50%, -50%)', 
+                    backgroundColor: 'rgba(255,0,0,0.8)', 
+                    color: 'white', 
+                    padding: '20px', 
+                    borderRadius: '5px',
+                    zIndex: 10,
+                    textAlign: 'center',
+                    maxWidth: '80%'
+                }}>
                     {modelError}
+                    <br />
+                    <small>Check browser console for details</small>
                 </div>
             )}
         </div>
