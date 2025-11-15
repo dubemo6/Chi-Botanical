@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-const ThreeDViewer = lazy(() => import('./ThreeDViewer'));
+const ThreeDViewer = lazy(() => import('./components/ThreeDViewer/ThreeDViewer'));
 
 // Assuming image imports are correctly handled elsewhere, e.g.:
 import image1 from './assets/download.webp';
@@ -52,10 +52,10 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
     ];
 
     const IS_PHONE_SCREEN = window.innerWidth <= 768;
-    const TEXT_SIZE = IS_PHONE_SCREEN ? 42 : 100;
-    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 2200 : 4500;
+    const TEXT_SIZE = IS_PHONE_SCREEN ? 40  : 100;
+    const PARTICLE_COUNT = IS_PHONE_SCREEN ? 4000 :6000;
     const PARTICLE_RADIUS = IS_PHONE_SCREEN ? 1.0 : 2.5;
-    const LETTER_SPACING = IS_PHONE_SCREEN ? 1.2 : 3.5;
+    const LETTER_SPACING = IS_PHONE_SCREEN ? 1.1 : 3.5;
 
     class Particle {
         constructor(x, y, radius, color) {
@@ -212,7 +212,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
             particlesRef.current.forEach(p => p.draw(ctx));
 
             if (animationPhase === 'forming') {
-                const formingDuration = 8000; // Increased from 3000 to 8000 for slower forming
+                const formingDuration = 7000; // Increased from 3000 to 8000 for slower forming
                 const formProgress = Math.min(1, elapsedTime / formingDuration);
                 
                 particlesRef.current.forEach(p => {
@@ -225,7 +225,7 @@ const IntroAnimation = ({ onAnimationComplete, animationPhase, setAnimationPhase
                 }
             } 
             else if (animationPhase === 'formedAndIdle') {
-                const idleDuration = 3000; // Increased from 2000 to 3000 for longer pause
+                const idleDuration = 5000; // Increased from 2000 to 3000 for longer pause
                 if (elapsedTime >= idleDuration) {
                     setAnimationPhase('scattering');
                     phaseStartTime = currentTime;
